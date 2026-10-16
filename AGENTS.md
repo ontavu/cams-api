@@ -9,17 +9,23 @@ and how each is consumed. This file holds the rules for changing it.
 ci/check.sh     # everything CI checks, both languages
 ```
 
-Run it in the image the Cams CI uses, because that image's `protoc` is the one whose
+Run it in the image of `ci/Dockerfile`, because that image's `protoc` is the one whose
 version is stamped into the committed Go bindings:
 
 ```sh
+docker build -t cams-api-ci ci
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w \
-    ontavu/cams-ci:latest ci/check.sh
+    cams-api-ci ci/check.sh
 ```
 
 `--user` keeps the files the run writes, `.git` included, owned by you rather than by
-root. `.github/workflows/ci.yml` runs the same script in the same image. Add a check to the
-script, never to the workflow alone.
+root. Without a command, and with `-it`, the same `docker run` opens a shell in the image.
+`.github/workflows/ci.yml` runs these two commands. It builds the image on every run rather
+than pulling one, so a change to `ci/Dockerfile` is checked by the run of that change. Add a
+check to the script, never to the workflow alone.
+
+The Ubuntu release `ci/Dockerfile` starts from is what pins that `protoc`: moving to
+another one means regenerating `pb/` in the same commit.
 
 ## `hub.proto` is the source of truth
 
@@ -57,6 +63,9 @@ GOBIN="$PWD/.bin" go install tool      # the two plugins, at the versions go.mod
 PATH="$PWD/.bin:$PATH" go generate ./...
 ```
 
+Run them in a shell in the image of `ci/Dockerfile`, like the checks. With any other
+`protoc`, the version stamped into `pb/` changes and `ci/check.sh` fails on that line.
+
 `go generate` runs the directive in `pb/doc.go`:
 
 ```sh
@@ -91,8 +100,9 @@ A release is a tag, `vX.Y.Z`, and it names both languages at once:
 
 When the release run of a tag fails for a reason outside the tag -- the CI image, a
 runner -- start the **Release** workflow by hand from the Actions tab, with that tag as
-input. It runs the workflow of the branch it is started from against the content of the
-tag, so the fix lands on `main` and the tag stays where it is.
+input. It runs the workflow, and builds the image from `ci/Dockerfile`, as they are on the
+branch it is started from, against the content of the tag. So the fix lands on `main`, and
+the tag stays where it is.
 
 **Never move or recreate a tag, and never replace an asset.** The Go checksum database
 remembers the first content it saw for a version, and the hub pins the asset's hash, so a

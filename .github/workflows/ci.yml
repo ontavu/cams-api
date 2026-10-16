@@ -13,19 +13,23 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# The checks live in ci/check.sh. The image is the one the cams CI runs in: its
-# protoc is the canonical generator of the committed Go bindings, and it carries
-# the gRPC and protobuf the C++ half is built against.
+# The checks live in ci/check.sh, and they run in the image of ci/Dockerfile:
+# its protoc is the canonical generator of the committed Go bindings, and it
+# carries the gRPC and protobuf the C++ half is built against. The two commands
+# are the ones AGENTS.md gives a person.
 #
-# --user root because the image ends on an unprivileged USER, which
-# actions/checkout cannot write the workspace as.
+# The image is built on every run, never pulled, so that a change to
+# ci/Dockerfile is checked by the run of the change that makes it.
+#
+# --user, the runner's, which owns the checkout: git refuses to work in a
+# repository that belongs to somebody else.
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    container:
-      image: ontavu/cams-ci:latest
-      options: --user root
     steps:
       - uses: actions/checkout@v4
-      - run: ./ci/check.sh
+      - run: docker build -t cams-api-ci ci
+      - run: |
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w \
+              cams-api-ci ci/check.sh

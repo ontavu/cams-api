@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Every check this repository has to pass, both languages. Run identically by
-# .github/workflows/ci.yml and by a person:
+# .github/workflows/ci.yml and by a person, in the image of ci/Dockerfile:
 #
-#     docker run --rm -v "$PWD:/w" -w /w ontavu/cams-ci:latest \
-#         bash -c 'git config --global --add safe.directory /w && ci/check.sh'
+#     docker build -t cams-api-ci ci
+#     docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w \
+#         cams-api-ci ci/check.sh
 #
 # In that image rather than with whatever a workstation has: protoc stamps its
 # own version into the Go bindings, and the image's protoc is the one that

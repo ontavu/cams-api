@@ -9,8 +9,8 @@ name: Release
 # Pushing a tag is the normal way. Run by hand, from the Actions tab, it
 # releases a tag that already exists and has no release yet -- one whose run
 # failed for a reason outside the tag, which cannot be fixed by moving the tag.
-# It then runs this file as it is on the branch it is started from, against the
-# content of the tag.
+# It then runs this file, and builds the CI image from ci/Dockerfile, as they
+# are on the branch it is started from, against the content of the tag.
 
 on:
   push:
@@ -30,14 +30,18 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    container:
-      image: ontavu/cams-ci:latest
-      options: --user root
     steps:
+      # The image from the commit this workflow runs from, and only then the
+      # tag: the image is outside the tag, like this file, so that a fix to it
+      # lands on main and can still release a tag that predates the fix.
+      - uses: actions/checkout@v4
+      - run: docker build -t cams-api-ci ci
       - uses: actions/checkout@v4
         with:
           ref: refs/tags/${{ env.TAG }}
-      - run: ./ci/check.sh
+      - run: |
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w \
+              cams-api-ci ci/check.sh
 
   release:
     needs: check
