@@ -14,7 +14,7 @@ version is stamped into the committed Go bindings:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w \
-    jfsmig/cams-ci:latest ci/check.sh
+    ontavu/cams-ci:latest ci/check.sh
 ```
 
 `--user` keeps the files the run writes, `.git` included, owned by you rather than by
@@ -43,11 +43,12 @@ one side compiles everywhere.
    `reserved` what you retire.
 4. **Agents and hub are upgraded separately.** Assume a version skew of at least one
    release in both directions, and add fields rather than repurposing them.
-5. **Both sides move to a new release together.** In Cams, the Go modules' requirement on
-   this module and the asset `cams-hub/cpp/cmake/CamsApi.cmake` downloads name one tag. Its
-   CMake configuration refuses a disagreement, because a schema bumped on one side only
-   still compiles on both and fails at runtime, which is the most expensive class of
-   mistake here.
+5. **The hub's two languages move to a new release together.** In Cams, the requirement
+   of `cams-hub/go/go.mod` on this module and the asset `cams-hub/cpp/cmake/CamsApi.cmake`
+   downloads name one tag. Its CMake configuration refuses a disagreement, because a
+   schema bumped on one side only still compiles on both and fails at runtime, which is
+   the most expensive class of mistake here. The agent, in its own repository, takes a
+   release on its own schedule, which is what rule 4 is for.
 
 ### Regenerating the Go bindings
 
@@ -85,8 +86,13 @@ A release is a tag, `vX.Y.Z`, and it names both languages at once:
    refuses a tag that disagrees with the CMake version, and creates the release. The release
    carries the asset `cams-api-X.Y.Z.tar.gz`, built with `git archive`, and its `.sha256`.
 3. In Cams, in one commit: `go get github.com/ontavu/cams-api@vX.Y.Z` and `go mod tidy` in
-   `cams-agent/` and `cams-hub/go/`, and the new version and SHA-256 in
-   `cams-hub/cpp/cmake/CamsApi.cmake`.
+   `cams-hub/go/`, and the new version and SHA-256 in `cams-hub/cpp/cmake/CamsApi.cmake`.
+   In cams-agent, `go get` and `go mod tidy`, when the agent needs the release.
+
+When the release run of a tag fails for a reason outside the tag -- the CI image, a
+runner -- start the **Release** workflow by hand from the Actions tab, with that tag as
+input. It runs the workflow of the branch it is started from against the content of the
+tag, so the fix lands on `main` and the tag stays where it is.
 
 **Never move or recreate a tag, and never replace an asset.** The Go checksum database
 remembers the first content it saw for a version, and the hub pins the asset's hash, so a

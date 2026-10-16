@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
-      image: jfsmig/cams-ci:latest
+      image: ontavu/cams-ci:latest
       options: --user root
     steps:
       - uses: actions/checkout@v4

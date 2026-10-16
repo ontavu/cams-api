@@ -2,7 +2,7 @@
 # Every check this repository has to pass, both languages. Run identically by
 # .github/workflows/ci.yml and by a person:
 #
-#     docker run --rm -v "$PWD:/w" -w /w jfsmig/cams-ci:latest \
+#     docker run --rm -v "$PWD:/w" -w /w ontavu/cams-ci:latest \
 #         bash -c 'git config --global --add safe.directory /w && ci/check.sh'
 #
 # In that image rather than with whatever a workstation has: protoc stamps its

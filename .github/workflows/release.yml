@@ -5,10 +5,24 @@ name: Release
 # ontavu/cams). An asset rather than GitHub's archive/refs/tags tarball, which is
 # generated on demand and not byte-stable: a hash of it eventually fails. The
 # asset is uploaded once and never regenerated, so its hash holds.
+#
+# Pushing a tag is the normal way. Run by hand, from the Actions tab, it
+# releases a tag that already exists and has no release yet -- one whose run
+# failed for a reason outside the tag, which cannot be fixed by moving the tag.
+# It then runs this file as it is on the branch it is started from, against the
+# content of the tag.
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing tag, vX.Y.Z, that has no release yet"
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   check:
@@ -17,10 +31,12 @@ jobs:
     permissions:
       contents: read
     container:
-      image: jfsmig/cams-ci:latest
+      image: ontavu/cams-ci:latest
       options: --user root
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
       - run: ./ci/check.sh
 
   release:
@@ -30,16 +46,22 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
 
       # One top-level directory, which ExternalProject strips on extraction.
       # gzip -n, so that no timestamp or name of this runner's goes into it.
       - name: Source asset
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          case "$TAG" in
+              v[0-9]*.[0-9]*.[0-9]*) ;;
+              *) echo "::error::$TAG is not a release tag, vX.Y.Z"; exit 1 ;;
+          esac
+          version="${TAG#v}"
           # One tag names both languages, so the CMake project has to agree.
           declared="$(sed -n 's/^project(cams-api VERSION \([0-9.]*\) .*/\1/p' CMakeLists.txt)"
           if [ "$declared" != "$version" ]; then
-              echo "::error::the tag is $GITHUB_REF_NAME and CMakeLists.txt declares $declared"
+              echo "::error::the tag is $TAG and CMakeLists.txt declares $declared"
               exit 1
           fi
           asset="cams-api-${version}.tar.gz"
@@ -51,7 +73,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag \
-              --title "$GITHUB_REF_NAME" \
-              --notes "Source of cams-api $GITHUB_REF_NAME. The asset is what the cams hub builds its C++ codec from; the .sha256 beside it is the hash to pin." \
+          gh release create "$TAG" --verify-tag \
+              --title "$TAG" \
+              --notes "Source of cams-api $TAG. The asset is what the cams hub builds its C++ codec from; the .sha256 beside it is the hash to pin." \
               cams-api-*.tar.gz cams-api-*.tar.gz.sha256
