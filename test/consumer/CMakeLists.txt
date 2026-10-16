@@ -6,8 +6,7 @@
 
 # A consumer of an installed cams-api, and nothing else: what CI configures
 # against the prefix it has just installed into, so that the package
-# configuration is checked by somebody. The cams hub never loads it -- it builds
-# this project as an ExternalProject and declares the imported target itself.
+# configuration is checked by somebody.
 #
 #     cmake -S test/consumer -B build-consumer -DCMAKE_PREFIX_PATH=<prefix>
 #     cmake --build build-consumer && build-consumer/cams-api-consumer

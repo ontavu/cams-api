@@ -12,16 +12,15 @@
 #     # then, elsewhere: find_package(cams-api 1 CONFIG REQUIRED)
 #
 # The bindings are generated into the build tree and never committed: the
-# output of protoc-gen-grpc-cpp is tied to the installed gRPC, so a committed
+# output of grpc_cpp_plugin is tied to the installed gRPC, so a committed
 # copy is guaranteed to disagree with some other machine's toolchain. The Go
 # bindings beside this file are committed because their generator is pinned in
 # go.mod; these cannot be.
 #
-# The cams hub builds this project as an ExternalProject, out of the release
-# asset of its tag (cams-hub/cpp/cmake/CamsApi.cmake in ontavu/cams), and hands
-# it its own protoc, plugin and compiler through the cache. That is why the
-# names below are the hub's: a value already in the cache is what find_program
-# keeps.
+# A project that builds this one as an ExternalProject can hand it its own
+# protoc and plugin through the cache, as PROTOBUF_PROTOC and
+# GRPC_CPP_PLUGIN_EXECUTABLE: a value already in the cache is what find_program
+# keeps, so the two names are part of this project's interface.
 
 cmake_minimum_required(VERSION 3.25)
 project(cams-api VERSION 1.0.0 LANGUAGES CXX

@@ -1,9 +1,9 @@
 name: Release
 
-# A tag becomes a release whose asset is the source tarball the cams hub builds
-# its C++ codec from, by URL and SHA-256 (cams-hub/cpp/cmake/CamsApi.cmake in
-# ontavu/cams). An asset rather than GitHub's archive/refs/tags tarball, which is
-# generated on demand and not byte-stable: a hash of it eventually fails. The
+# A tag becomes a release whose asset is the source tarball, for whoever builds
+# the C++ half from a release by URL and SHA-256. An asset rather than GitHub's
+# archive/refs/tags tarball, which is generated on demand and not byte-stable: a
+# hash of it eventually fails. The
 # asset is uploaded once and never regenerated, so its hash holds.
 #
 # Pushing a tag is the normal way. Run by hand, from the Actions tab, it
@@ -79,5 +79,5 @@ jobs:
         run: |
           gh release create "$TAG" --verify-tag \
               --title "$TAG" \
-              --notes "Source of cams-api $TAG. The asset is what the cams hub builds its C++ codec from; the .sha256 beside it is the hash to pin." \
+              --notes "Source of cams-api $TAG, to build the C++ half from; the .sha256 beside it is the hash to pin." \
               cams-api-*.tar.gz cams-api-*.tar.gz.sha256

@@ -32,12 +32,11 @@ another one means regenerating `pb/` in the same commit.
 Both ends of every wire are generated from that single file: the Go bindings under `pb/`,
 which are committed, and the C++ ones, which `CMakeLists.txt` generates into its build tree.
 The schema is the only place where the two languages meet, which makes it the most
-expensive file in the project to get wrong. Its consumers generate nothing: the Go side
-imports `pb`, and the hub links `cams::api-cpp`, built from a release of this repository
-with its own `protoc`, plugin and compiler, so that the library and the hub cannot be
-built against two gRPCs. The keys a call is tagged with are in `wire/` for the same reason:
-the agent and the hub are built and upgraded separately, and a key spelled differently on
-one side compiles everywhere.
+expensive file in the project to get wrong. Its consumers generate nothing: a Go one
+imports `pb`, and a C++ one links `cams::api-cpp`, built with its own `protoc`, plugin and
+compiler, so that the library and its consumer cannot be built against two gRPCs. The keys
+a call is tagged with are in `wire/` for the same reason: the two ends of a call are built
+and upgraded separately, and a key spelled differently on one side compiles everywhere.
 
 1. **A protocol change starts in `hub.proto`, never in generated code.** Editing
    `pb/*.pb.go` by hand is always wrong: the next generation silently reverts it, and the
@@ -49,12 +48,6 @@ one side compiles everywhere.
    `reserved` what you retire.
 4. **Agents and hub are upgraded separately.** Assume a version skew of at least one
    release in both directions, and add fields rather than repurposing them.
-5. **The hub's two languages move to a new release together.** In Cams, the requirement
-   of `cams-hub/go/go.mod` on this module and the asset `cams-hub/cpp/cmake/CamsApi.cmake`
-   downloads name one tag. Its CMake configuration refuses a disagreement, because a
-   schema bumped on one side only still compiles on both and fails at runtime, which is
-   the most expensive class of mistake here. The agent, in its own repository, takes a
-   release on its own schedule, which is what rule 4 is for.
 
 ### Regenerating the Go bindings
 
@@ -94,9 +87,6 @@ A release is a tag, `vX.Y.Z`, and it names both languages at once:
 2. Tag `vX.Y.Z` and push the tag. `.github/workflows/release.yml` runs `ci/check.sh`,
    refuses a tag that disagrees with the CMake version, and creates the release. The release
    carries the asset `cams-api-X.Y.Z.tar.gz`, built with `git archive`, and its `.sha256`.
-3. In Cams, in one commit: `go get github.com/ontavu/cams-api@vX.Y.Z` and `go mod tidy` in
-   `cams-hub/go/`, and the new version and SHA-256 in `cams-hub/cpp/cmake/CamsApi.cmake`.
-   In cams-agent, `go get` and `go mod tidy`, when the agent needs the release.
 
 When the release run of a tag fails for a reason outside the tag -- the CI image, a
 runner -- start the **Release** workflow by hand from the Actions tab, with that tag as
@@ -105,16 +95,16 @@ branch it is started from, against the content of the tag. So the fix lands on `
 the tag stays where it is.
 
 **Never move or recreate a tag, and never replace an asset.** The Go checksum database
-remembers the first content it saw for a version, and the hub pins the asset's hash, so a
-changed release fails everywhere that already used it. A mistake is fixed by the next
+remembers the first content it saw for a version, and whoever builds from the asset pins
+its hash, so a changed release fails everywhere that already used it. A mistake is fixed by the next
 version.
 
 A major version is a contract that broke: the Go module path then takes a `/vN` suffix,
 and `find_package` with `SameMajorVersion` refuses the old major.
 
-## Licence header on every file
+## Licence header on every source file
 
-Every source file, the schema and the CMake files included, starts with:
+Every source file -- Go, C++, the schema and the CMake files -- starts with:
 
 ```
 Copyright (c) 2022-2024 The authors (see the AUTHORS file)
@@ -126,11 +116,14 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 in that file's comment syntax. The header is Exhibit A and nothing more. **Never add
 Exhibit B** ("Incompatible With Secondary Licenses"): leaving it out is what keeps this
-module compatible with the AGPL as a secondary licence, which is how the Cams agent links
-it. The generated `pb/*.pb.go` carry the header too, because `hub.proto` does and protoc
+module compatible with the GNU licences, the AGPL included, as Secondary Licenses
+(section 3.3). The generated `pb/*.pb.go` carry the header too, because `hub.proto` does and protoc
 copies its leading comment. They say which generator produced them from which input,
 which is a fact about the build, not attribution. In Go, keep a blank line between the
 notice and `package`, or Go takes the licence for the package's doc comment.
+
+The files that only check and release this repository, under `ci/` and `.github/`, carry
+none: they say how the code is checked, not what it is.
 
 ## Attribution: `Assisted-By`, never `Co-Authored-By`
 
@@ -147,6 +140,13 @@ and its pull request description, with one line: `Assisted-By: Claude Code`,
 
 ## What may be imported
 
-Nothing of Cams: no `cams-go-utils`, no `cams-agent` and no `cams-hub`. Every other module
-depends on this one, and a dependency in the other direction would be a cycle between
-repositories. `go list -deps ./... | grep ontavu` lists only this module.
+The gRPC and protobuf runtimes, and nothing of `github.com/ontavu`: the contract is a leaf.
+`go list -deps ./... | grep ontavu` lists only this module.
+
+## What the documentation names
+
+What this repository is, and what it depends on: never what depends on it. A consumer's
+files, build and procedures are that consumer's to document, and a mention of them here
+is wrong the day they move. This holds for comments as much as for this file and the
+README. The parties of the protocol -- agents, hub, control plane, data plane, viewers --
+are not consumers but the contract's own vocabulary, which `hub.proto` is written in.

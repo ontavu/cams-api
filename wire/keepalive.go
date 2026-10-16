@@ -18,15 +18,15 @@ import (
 // They are one contract, not two settings: the client pings, and the server's
 // enforcement policy decides whether a ping is welcome. A policy that refuses
 // what the client sends answers with GOAWAY, which turns the keepalive into a
-// reconnect loop -- and the agent and the control plane are built from
-// different trees, so the only place both halves can be read together is here.
+// reconnect loop -- and the two ends are built separately, so the only place
+// both halves can be read together is here.
 
 // KeepaliveClient makes gRPC prove the peer is still there.
 //
-// This is not a nicety. The upstream agent's whole reconnect logic hangs off
-// stream.Recv returning an error, and the hub sends nothing on the control
-// stream unless a viewer asks for a camera -- so an idle stream carries no
-// traffic at all. Without a keepalive, a NAT between an agent and the hub drops
+// This is not a nicety. The hub sends nothing on the control stream unless a
+// viewer asks for a camera, so an idle stream carries no traffic at all, and an
+// agent learns that its link is gone only from stream.Recv returning an error.
+// Without a keepalive, a NAT between an agent and the hub drops
 // the connection after its idle timeout, nobody is told, Recv parks forever,
 // and the agent is a zombie that still reports its link as up.
 //
@@ -64,8 +64,7 @@ func ServerOptions() []grpc.ServerOption {
 }
 
 // DialOptions applies KeepaliveClient to a client. Every dial between an agent,
-// the cloud and a viewer process passes it: the helpers that dial know nothing
-// of this contract and apply no keepalive of their own.
+// the cloud and a viewer process passes it.
 func DialOptions() []grpc.DialOption {
 	return []grpc.DialOption{grpc.WithKeepaliveParams(KeepaliveClient)}
 }

@@ -18,19 +18,16 @@ import (
 
 // SessionID names this process's run in the logs of everything it talks to.
 //
-// The hub's logging interceptor has read a "session-id" metadata key since it
-// was written, and nothing ever set it. So the three logs a single camera
-// produces -- the agent's, the control plane's, the data plane's -- had no
-// column to join on, and following one stream across them meant guessing from
-// timestamps. This is that column.
+// A single camera produces three logs -- the agent's, the control plane's, the
+// data plane's -- and without a column in common, following one stream across
+// them means guessing from timestamps. This is that column.
 //
 // One value per process, so a restart produces a new one. That is deliberate:
 // a restart is one of the things an operator is trying to see, and an id that
 // survived it would hide the seam.
 //
 // It is diagnostic only. It is asserted by the caller, like every other
-// identity on this wire today, and must never come to mean anything more --
-// see the authentication section of ARCHITECTURE.md.
+// identity on this wire today, and must never come to mean anything more.
 var SessionID = newSessionID()
 
 func newSessionID() string {

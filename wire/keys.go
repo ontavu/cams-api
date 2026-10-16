@@ -5,26 +5,22 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // Package wire is what both ends of a call have to agree on and that
-// hub.proto cannot say: the metadata keys a call is tagged with, and the
-// keepalive each side expects of the other.
+// hub.proto cannot say: the metadata keys a call is tagged with, the session
+// id it carries, and the keepalive each side expects of the other.
 //
-// It lives beside the schema rather than in either party because the agent and
-// the hub are built and upgraded separately. A key spelled differently on one
-// side compiles everywhere and is refused at runtime -- which is how every
-// upload was once refused, when the hub expected "camera" and the agent sent
-// "stream".
+// It lives beside the schema rather than in either party because the two ends
+// of a call are built and upgraded separately. A key spelled differently on one
+// side compiles everywhere and is refused at runtime.
 package wire
 
-// The metadata keys an agent tags its calls with. The C++ hub mirrors them in
-// cams-hub/cpp/libupstream/MediaService.hpp, in ontavu/cams, and
-// cams-hub/cpp/tests/service_test.cpp there asserts the literal strings, not
-// the hub's constants.
+// The metadata keys an agent tags its calls with. They are the contract as
+// much as the schema is: a party in C++, which cannot import them, spells the
+// same strings, and renaming one breaks every deployed agent.
 const (
 	KeyUser   string = "user"
 	KeyStream        = "stream"
 
 	// KeySession carries SessionID, the join column between the logs of
-	// the agent, the control plane and the data plane. cams-ctrl hands it to
-	// its access log as utils.ServerConfig.SessionKey; see session.go.
+	// the agent, the control plane and the data plane; see session.go.
 	KeySession = "session-id"
 )

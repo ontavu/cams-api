@@ -2,11 +2,6 @@
 # cams-api -- the Go bindings regenerated, vetted and tested, the C++ library
 # built, installed and loaded by test/consumer -- and nothing else.
 #
-# Cut down from cams-hub's docker/ci/Dockerfile, which builds the whole hub and
-# so also carries FFmpeg, libarchive, GoogleTest, Google Benchmark, Envoy,
-# ninja, clang and gdb. Nothing here uses any of them. What is kept is the base,
-# the gRPC and protobuf packages and the Go toolchain, at the same versions.
-#
 # Nothing of the repository is copied in, so this directory is the whole build
 # context. The workflows build it on every run rather than pull it, with the
 # same two commands as a person:
@@ -17,8 +12,8 @@
 
 # The Go toolchain, from the official image rather than from the distribution:
 # it has to be at or above the go line of go.mod, which no distribution
-# guarantees. Copied out rather than built on, the way cams-hub takes Envoy:
-# the toolchain is statically linked and runs as is on the base below.
+# guarantees. Copied out rather than built on: the toolchain is statically
+# linked and runs as is on the base below.
 FROM golang:1.27.1 AS go
 
 # The release of Ubuntu is not a free choice. Its protobuf-compiler is the
