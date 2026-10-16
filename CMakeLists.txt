@@ -23,7 +23,7 @@
 # keeps, so the two names are part of this project's interface.
 
 cmake_minimum_required(VERSION 3.25)
-project(cams-api VERSION 1.0.0 LANGUAGES CXX
+project(cams-api VERSION 1.0.1 LANGUAGES CXX
         DESCRIPTION "The gRPC contract between the cams agents and the hub"
         HOMEPAGE_URL "https://github.com/ontavu/cams-api")
 
