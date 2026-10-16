@@ -1,0 +1,20 @@
+# Build trees: cmake -B build, and whatever an IDE names its own.
+/build*/
+/cmake-build-*/
+
+# Test binaries and profiles.
+*.test
+*.out
+*.prof
+
+# A workspace belongs to whoever develops several modules together, never to
+# this repository.
+go.work
+go.work.sum
+
+.idea
+*.swp
+*.swo
+
+# The protoc plugins, when AGENTS.md installs them into the clone.
+/.bin/

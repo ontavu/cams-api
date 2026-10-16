@@ -1,0 +1,57 @@
+name: Release
+
+# A tag becomes a release whose asset is the source tarball the cams hub builds
+# its C++ codec from, by URL and SHA-256 (cams-hub/cpp/cmake/CamsApi.cmake in
+# ontavu/cams). An asset rather than GitHub's archive/refs/tags tarball, which is
+# generated on demand and not byte-stable: a hash of it eventually fails. The
+# asset is uploaded once and never regenerated, so its hash holds.
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    container:
+      image: jfsmig/cams-ci:latest
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./ci/check.sh
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # One top-level directory, which ExternalProject strips on extraction.
+      # gzip -n, so that no timestamp or name of this runner's goes into it.
+      - name: Source asset
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # One tag names both languages, so the CMake project has to agree.
+          declared="$(sed -n 's/^project(cams-api VERSION \([0-9.]*\) .*/\1/p' CMakeLists.txt)"
+          if [ "$declared" != "$version" ]; then
+              echo "::error::the tag is $GITHUB_REF_NAME and CMakeLists.txt declares $declared"
+              exit 1
+          fi
+          asset="cams-api-${version}.tar.gz"
+          git archive --format=tar --prefix="cams-api-${version}/" HEAD | gzip -9n > "$asset"
+          sha256sum "$asset" > "$asset.sha256"
+          cat "$asset.sha256"
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --notes "Source of cams-api $GITHUB_REF_NAME. The asset is what the cams hub builds its C++ codec from; the .sha256 beside it is the hash to pin." \
+              cams-api-*.tar.gz cams-api-*.tar.gz.sha256

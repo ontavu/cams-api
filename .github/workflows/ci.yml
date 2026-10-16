@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# The checks live in ci/check.sh. The image is the one the cams CI runs in: its
+# protoc is the canonical generator of the committed Go bindings, and it carries
+# the gRPC and protobuf the C++ half is built against.
+#
+# --user root because the image ends on an unprivileged USER, which
+# actions/checkout cannot write the workspace as.
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: jfsmig/cams-ci:latest
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./ci/check.sh

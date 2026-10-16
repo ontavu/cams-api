@@ -1,0 +1,237 @@
+// Copyright (c) 2022-2024 The authors (see the AUTHORS file)
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+syntax = "proto3";
+
+option go_package = "github.com/ontavu/cams-api/pb;pb";
+
+package cams.api.hub;
+
+message Status {
+  uint32 code = 1;
+  string status = 2;
+}
+
+message StreamId {
+  string user = 1;
+  string stream = 2;
+}
+
+message None {}
+
+
+
+
+// The service dedicated to the agents
+// It is all about controlling media streams
+service Controller {
+  // Stream of commands from the server to the client
+  rpc Control(stream None) returns (stream DownstreamControlRequest) {}
+}
+
+enum DownstreamCommandType {
+    DOWNSTREAM_COMMAND_TYPE_UNSPECIFIED = 0;
+    DOWNSTREAM_COMMAND_TYPE_PLAY = 1;
+    DOWNSTREAM_COMMAND_TYPE_STOP = 2;
+}
+
+// What should be done
+message DownstreamControlRequest {
+  string streamID = 1;
+  DownstreamCommandType command = 2;
+}
+
+
+
+
+// The service dedicated to the agents 
+// It is all about their cameras producing media frames
+service Uploader {
+  // Stream of media frames from the client to the server.
+  //
+  // One long-standing call per stream being uploaded, not per agent: an agent
+  // carries a whole LAN and opens one of these for each camera it is asked to
+  // play. A camera may account for more than one, since it may offer more than
+  // one codec and each is a stream of its own.
+  rpc MediaUpload(stream DownstreamMediaFrame) returns (None) {}
+}
+
+enum DownstreamMediaFrameType {
+  DOWNSTREAM_MEDIA_FRAME_TYPE_UNSPECIFIED = 0;
+  DOWNSTREAM_MEDIA_FRAME_TYPE_RTP = 1;
+  DOWNSTREAM_MEDIA_FRAME_TYPE_RTCP = 2;
+  DOWNSTREAM_MEDIA_FRAME_TYPE_SDP = 3;
+}
+
+message DownstreamMediaFrame {
+  DownstreamMediaFrameType type = 2;
+  bytes payload = 3;
+
+  // Which media of the session description the payload belongs to, as the
+  // zero-based index of its "m=" section.
+  //
+  // Without it a second media would be indistinguishable on the wire from the
+  // first: the payload is an opaque RTP or RTCP packet, and matching it back to
+  // a media by payload type only works while every media has a distinct one.
+  // A session description describes them all and always reports 0.
+  uint32 track = 4;
+
+  // When the agent forwarded the packet, in nanoseconds since the Unix epoch.
+  //
+  // Diagnostic only. Presentation timestamps come from the RTP headers, which
+  // are the only clock the camera itself provides; this one measures how long a
+  // packet took to reach the hub, which no other field can express.
+  int64 forwarded_unix_nanos = 5;
+}
+
+
+
+
+// The service is dedicated to the agents
+// It is used for authentication and registration of their cameras
+service Registrar {
+  rpc Register(RegisterRequest) returns (None) {}
+}
+
+enum VideoEncoding {
+  VIDEO_ENCODING_UNSPECIFIED = 0;
+  VIDEO_ENCODING_H264 = 1;
+  VIDEO_ENCODING_H265 = 2;
+  VIDEO_ENCODING_JPEG = 3;
+}
+
+message RegisterRequest {
+  StreamId id = 1;
+
+  // What the camera was last seen producing, so that the hub knows the cost of
+  // a stream before it commits a thread and a pipeline to it. Only H.264
+  // remuxes into fMP4 and plays everywhere; H.265 remuxes too but plays in
+  // fewer browsers; anything else needs a transcoder, which is roughly two
+  // cores per camera.
+  //
+  // UNSPECIFIED means the agent has not set one up yet -- a registered camera
+  // nobody has asked to play -- or that the agent predates this field. It never
+  // means the camera has no video. Agents and hub are upgraded separately, so
+  // assume a skew of at least one release in both directions.
+  VideoEncoding encoding = 2;
+
+  // The frame size of that stream, zero when unknown. A camera commonly offers
+  // a main stream and a much smaller substream, and which one the agent picked
+  // is most of what the stream will cost to store.
+  uint32 width = 3;
+  uint32 height = 4;
+
+  // The camera's advertised GOP length in frames, zero when unknown or not
+  // reported. It bounds how short a fragment can be, since a fragment only
+  // breaks on a keyframe, and therefore how low the latency can go.
+  uint32 gop_length = 5;
+}
+
+
+
+
+// The service is dedicated to admins
+// It pilots the agents on the field from the cloud
+service Viewer {
+  rpc Play(PlayRequest) returns (None) {}
+  rpc Pause(PauseRequest) returns (None) {}
+}
+
+message PlayRequest {
+  StreamId id = 1;
+}
+
+message PauseRequest {
+  StreamId id = 1;
+}
+
+
+
+
+// The service is dedicated to the viewer side
+// It carries what a camera is producing right now, to whoever is showing it.
+//
+// The hub muxes and the caller relays opaque bytes. That is the whole division
+// of labour: the codec knowledge stays in the process that already has it, and
+// one muxer serves every viewer of a (stream, format), so the cost of muxing
+// does not grow with the audience -- which is the property that lets the media
+// path keep calling itself a remux.
+//
+// It is separate from the services above because its caller is not an agent.
+// An agent uploads; this is read by whatever faces the viewer.
+service LiveViewer {
+  // One call watches one stream in one format.
+  //
+  // The hub muxes that format for as long as at least one call is open and
+  // stops when the last one ends, so a format nobody is watching costs
+  // nothing. What is buffered ahead of any call is the access units, not the
+  // muxed bytes -- that is what lets the first call start on the keyframe that
+  // has already gone by instead of waiting for the next one.
+  //
+  // NOT_FOUND when no agent is uploading that stream: the call is refused
+  // rather than parked, so a viewer is told that the camera is not streaming
+  // instead of waiting on one that may never start.
+  //
+  // The call ends when the upload does, and also when a second upload displaces
+  // it. The next session restarts its own presentation clock, and a timeline
+  // that goes backwards mid-stream is what no player recovers from, so the
+  // caller reconnects and is given a fresh initialisation instead.
+  rpc Watch(WatchRequest) returns (stream MediaChunk) {}
+}
+
+enum MediaFormat {
+  MEDIA_FORMAT_UNSPECIFIED = 0;
+  // Fragmented MP4, which is what a browser can be fed through Media Source
+  // Extensions and what the stored fragments already are.
+  MEDIA_FORMAT_FMP4 = 1;
+  // MPEG-TS, for the players that are not browsers.
+  MEDIA_FORMAT_MPEGTS = 2;
+}
+
+message WatchRequest {
+  StreamId id = 1;
+
+  // UNSPECIFIED is refused rather than defaulted: the two formats are not
+  // interchangeable to a client, and a caller that did not say which it can
+  // decode has not been written yet.
+  MediaFormat format = 2;
+}
+
+enum MediaChunkType {
+  MEDIA_CHUNK_TYPE_UNSPECIFIED = 0;
+  // The bytes a client needs before any fragment, sent once at the head of
+  // every call. fMP4 only: MPEG-TS carries its own tables inline and has no
+  // separate initialisation.
+  MEDIA_CHUNK_TYPE_INIT = 1;
+  // One self-contained piece of the stream.
+  MEDIA_CHUNK_TYPE_FRAGMENT = 2;
+}
+
+message MediaChunk {
+  MediaChunkType type = 1;
+
+  // Muxed bytes, to be written to the client in the order they arrive. They
+  // are opaque to the relay on purpose.
+  bytes payload = 2;
+
+  // Whether this fragment opens on a keyframe, and is therefore a place a
+  // decoder can be started. A relay that has to drop -- a viewer too slow to
+  // keep up -- resumes on one of these rather than in the middle.
+  bool joinable = 3;
+
+  // The presentation time of the first access unit of the chunk, in
+  // microseconds on the stream's own clock. Diagnostic: it is what lets a
+  // viewer say how far behind the live edge it is.
+  int64 pts_us = 4;
+
+  // The RFC 6381 codec string, on the INIT chunk only, empty elsewhere.
+  //
+  // Media Source Extensions demands it before the first byte is appended, and
+  // only the hub can compute it: it comes from the parameter sets the camera
+  // sent. Sending it here is what lets the relay answer a viewer before any
+  // media has been produced.
+  string codec = 5;
+}

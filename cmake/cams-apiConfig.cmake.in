@@ -1,0 +1,32 @@
+# Copyright (c) 2022-2024 The authors (see the AUTHORS file)
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# The package configuration of cams-api: what `find_package(cams-api CONFIG)`
+# loads to define cams::api-cpp.
+#
+# The library links gRPC and protobuf through pkg-config targets, which are not
+# exported: they are found again here, under the same prefixes the build used.
+# Never REQUIRED -- a QUIET find_package of this package must stay quiet, so a
+# missing dependency is reported through cams-api_FOUND like any other.
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(PkgConfig)
+
+pkg_check_modules(CAMS_API_GRPCPP QUIET IMPORTED_TARGET grpc++)
+pkg_check_modules(CAMS_API_PROTOBUF QUIET IMPORTED_TARGET protobuf)
+
+if (NOT CAMS_API_GRPCPP_FOUND OR NOT CAMS_API_PROTOBUF_FOUND)
+    set(cams-api_FOUND FALSE)
+    set(cams-api_NOT_FOUND_MESSAGE
+        "cams-api needs grpc++ and protobuf, and pkg-config finds neither or only one")
+    return()
+endif ()
+
+include("${CMAKE_CURRENT_LIST_DIR}/cams-api-targets.cmake")
+
+check_required_components(cams-api)
